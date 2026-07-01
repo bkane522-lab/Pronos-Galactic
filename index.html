@@ -100,6 +100,24 @@
     margin-top: 6px;
     display: none;
   }
+  .accuracy-badge {
+    text-align: center;
+    background: rgba(255,209,102,0.1);
+    border: 1px solid rgba(255,209,102,0.3);
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .accuracy-badge b { color: #ffd166; font-size: 16px; }
+  .legal-footer {
+    text-align: center;
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 28px;
+    line-height: 1.5;
+    padding: 0 8px;
+  }
 </style>
 </head>
 <body>
@@ -108,6 +126,10 @@
   <h1>🦁 Pronos Galactic</h1>
   <p>Sounds from elsewhere, never heard, never known — version pronostics</p>
 </header>
+
+<div class="accuracy-badge" id="accuracyBadge" style="display:none;">
+  🎯 L'IA a eu raison sur <b id="accuracyPct">-</b> des duels joués (<span id="accuracyCount">-</span>)
+</div>
 
 <div class="card" id="formCard">
   <label>Équipe A</label>
@@ -165,10 +187,15 @@
 
 <p class="streak" id="streakDisplay"></p>
 
+<p class="legal-footer">
+  Pronos Galactic est un outil de divertissement basé sur l'IA et ne constitue en aucun cas un conseil financier ou une garantie de gain. Les pronostics affichés sont générés automatiquement et peuvent être erronés. Jouer comporte des risques : endettement, isolement, dépendance. Pour être aidé, appelez le 09 74 75 13 13 (appel non surtaxé).
+</p>
+
 <script>
 let currentDuel = null;
 const FREE_DAILY_LIMIT = 3;
 
+// --- Déblocage via redirection Stripe ---
 (function checkUnlock() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('unlocked') === 'true') {
@@ -181,6 +208,7 @@ function isUnlocked() {
   return localStorage.getItem('pg_unlocked') === 'true';
 }
 
+// --- Compteur quotidien ---
 function getTodayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -230,6 +258,16 @@ function renderStreak() {
   const s = getStreak();
   document.getElementById('streakDisplay').textContent =
     s.total > 0 ? `🏆 Score cumulé — Toi: ${s.user} | IA: ${s.ai} (sur ${s.total} duels)` : '';
+
+  const badge = document.getElementById('accuracyBadge');
+  if (s.total >= 3) {
+    const pct = Math.round((s.ai / s.total) * 100);
+    document.getElementById('accuracyPct').textContent = `${pct}%`;
+    document.getElementById('accuracyCount').textContent = `${s.ai}/${s.total}`;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 renderStreak();
 
