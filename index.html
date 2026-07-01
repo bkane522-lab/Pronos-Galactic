@@ -64,6 +64,42 @@
   canvas { display: none; }
   #shareCard { display: block; margin-top: 14px; border-radius: 14px; width: 100%; }
   .loading { text-align: center; font-size: 13px; opacity: 0.7; }
+  .quota { text-align: center; font-size: 12px; opacity: 0.75; margin-top: 8px; }
+  .paywall {
+    display: none;
+    text-align: center;
+    padding: 24px 18px;
+  }
+  .paywall .lion { font-size: 40px; }
+  .paywall h2 {
+    color: #ffd166;
+    font-size: 20px;
+    margin: 10px 0 6px;
+  }
+  .paywall p { font-size: 13px; opacity: 0.85; margin-bottom: 6px; }
+  .paywall .price {
+    font-size: 32px;
+    font-weight: bold;
+    color: #ffd166;
+    margin: 12px 0;
+  }
+  .paywall a.buy-btn {
+    display: block;
+    background: linear-gradient(90deg, #ffd166, #f0a500);
+    color: #1a0b2e;
+    font-weight: bold;
+    text-decoration: none;
+    padding: 14px;
+    border-radius: 10px;
+    margin-top: 10px;
+  }
+  .unlocked-badge {
+    text-align: center;
+    font-size: 12px;
+    color: #7CFC9A;
+    margin-top: 6px;
+    display: none;
+  }
 </style>
 </head>
 <body>
@@ -73,7 +109,7 @@
   <p>Sounds from elsewhere, never heard, never known — version pronostics</p>
 </header>
 
-<div class="card">
+<div class="card" id="formCard">
   <label>Équipe A</label>
   <input id="teamA" placeholder="Ex: Brésil">
   <label style="margin-top:10px; display:block;">Équipe B</label>
@@ -87,6 +123,18 @@
 
   <button class="primary" id="duelBtn">⚔️ Lancer le Duel IA</button>
   <p class="loading" id="loadingMsg" style="display:none;">L'IA analyse le match...</p>
+  <p class="quota" id="quotaMsg"></p>
+  <p class="unlocked-badge" id="unlockedBadge">🔓 Accès illimité activé — merci !</p>
+</div>
+
+<div class="card paywall" id="paywallCard">
+  <div class="lion">🦁</div>
+  <h2>Duels gratuits épuisés pour aujourd'hui</h2>
+  <p>Tu as utilisé tes 3 duels gratuits du jour.</p>
+  <p>Débloque l'accès illimité pour toute la CDM 2026 :</p>
+  <div class="price">2,99 €</div>
+  <a class="buy-btn" href="https://buy.stripe.com/test_eVq3cv5II13n7Oj5PagYU00" target="_blank">🔓 Débloquer l'accès illimité</a>
+  <p style="margin-top:14px; opacity:0.6;">Ou reviens demain pour 3 nouveaux duels gratuits.</p>
 </div>
 
 <div class="card result-box" id="resultBox">
@@ -119,6 +167,60 @@
 
 <script>
 let currentDuel = null;
+const FREE_DAILY_LIMIT = 3;
+
+(function checkUnlock() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('unlocked') === 'true') {
+    localStorage.setItem('pg_unlocked', 'true');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+})();
+
+function isUnlocked() {
+  return localStorage.getItem('pg_unlocked') === 'true';
+}
+
+function getTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function getDailyUsage() {
+  const data = JSON.parse(localStorage.getItem('pg_daily') || '{}');
+  if (data.date !== getTodayKey()) {
+    return { date: getTodayKey(), count: 0 };
+  }
+  return data;
+}
+function incrementDailyUsage() {
+  const data = getDailyUsage();
+  data.count++;
+  localStorage.setItem('pg_daily', JSON.stringify(data));
+}
+function remainingDuels() {
+  if (isUnlocked()) return Infinity;
+  return Math.max(0, FREE_DAILY_LIMIT - getDailyUsage().count);
+}
+
+function updateQuotaDisplay() {
+  if (isUnlocked()) {
+    document.getElementById('quotaMsg').textContent = '';
+    document.getElementById('unlockedBadge').style.display = 'block';
+    document.getElementById('formCard').style.display = 'block';
+    document.getElementById('paywallCard').style.display = 'none';
+    return;
+  }
+  const remaining = remainingDuels();
+  document.getElementById('quotaMsg').textContent = `${remaining} duel(s) gratuit(s) restant(s) aujourd'hui`;
+  if (remaining <= 0) {
+    document.getElementById('formCard').style.display = 'none';
+    document.getElementById('paywallCard').style.display = 'block';
+  } else {
+    document.getElementById('formCard').style.display = 'block';
+    document.getElementById('paywallCard').style.display = 'none';
+  }
+}
+updateQuotaDisplay();
 
 function getStreak() {
   return JSON.parse(localStorage.getItem('pg_streak') || '{"user":0,"ai":0,"total":0}');
@@ -132,6 +234,11 @@ function renderStreak() {
 renderStreak();
 
 document.getElementById('duelBtn').addEventListener('click', async () => {
+  if (remainingDuels() <= 0) {
+    updateQuotaDisplay();
+    return;
+  }
+
   const teamA = document.getElementById('teamA').value.trim();
   const teamB = document.getElementById('teamB').value.trim();
   const userA = document.getElementById('userScoreA').value;
@@ -166,6 +273,11 @@ document.getElementById('duelBtn').addEventListener('click', async () => {
     document.getElementById('confidenceDisplay').textContent = `Confiance IA: ${data.confidence}%`;
     document.getElementById('aiReasoning').textContent = data.reasoning;
     document.getElementById('resultBox').style.display = 'block';
+
+    if (!isUnlocked()) {
+      incrementDailyUsage();
+      updateQuotaDisplay();
+    }
   } catch (e) {
     alert("L'IA est indisponible pour le moment (quota Groq atteint probablement). Réessaie plus tard.");
   }
