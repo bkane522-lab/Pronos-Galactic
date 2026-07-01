@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pronos Galactic</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1a0b2e">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: radial-gradient(circle at top, #2d1854 0%, #0d0620 70%);
+    color: #f5e6c8;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 {
+    font-size: 26px;
+    background: linear-gradient(90deg, #ffd166, #f0a500);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  header p { font-size: 12px; opacity: 0.7; margin-top: 4px; }
+  .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,209,102,0.3);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  input, button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    margin-top: 8px;
+    font-size: 15px;
+  }
+  input { background: rgba(255,255,255,0.1); color: #fff; }
+  .score-row { display: flex; gap: 10px; }
+  .score-row input { text-align: center; }
+  button.primary {
+    background: linear-gradient(90deg, #ffd166, #f0a500);
+    color: #1a0b2e;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 14px;
+  }
+  button.secondary {
+    background: transparent;
+    border: 1px solid #ffd166;
+    color: #ffd166;
+    margin-top: 8px;
+  }
+  .result-box { margin-top: 16px; display: none; }
+  .duel-vs { display: flex; justify-content: space-between; margin-top: 10px; }
+  .duel-side { text-align: center; flex: 1; }
+  .duel-side h3 { color: #ffd166; font-size: 13px; }
+  .duel-side p { font-size: 20px; font-weight: bold; }
+  .confidence { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+  .streak { text-align: center; font-size: 14px; margin-top: 20px; opacity: 0.85; }
+  canvas { display: none; }
+  #shareCard { display: block; margin-top: 14px; border-radius: 14px; width: 100%; }
+  .loading { text-align: center; font-size: 13px; opacity: 0.7; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🦁 Pronos Galactic</h1>
+  <p>Sounds from elsewhere, never heard, never known — version pronostics</p>
+</header>
+
+<div class="card">
+  <label>Équipe A</label>
+  <input id="teamA" placeholder="Ex: Brésil">
+  <label style="margin-top:10px; display:block;">Équipe B</label>
+  <input id="teamB" placeholder="Ex: France">
+
+  <label style="margin-top:10px; display:block;">Ton pronostic (score exact)</label>
+  <div class="score-row">
+    <input id="userScoreA" type="number" min="0" placeholder="0">
+    <input id="userScoreB" type="number" min="0" placeholder="0">
+  </div>
+
+  <button class="primary" id="duelBtn">⚔️ Lancer le Duel IA</button>
+  <p class="loading" id="loadingMsg" style="display:none;">L'IA analyse le match...</p>
+</div>
+
+<div class="card result-box" id="resultBox">
+  <div class="duel-vs">
+    <div class="duel-side">
+      <h3>TOI</h3>
+      <p id="userPredictionDisplay">-</p>
+    </div>
+    <div class="duel-side">
+      <h3>IA GALACTIC</h3>
+      <p id="aiPredictionDisplay">-</p>
+      <p class="confidence" id="confidenceDisplay"></p>
+    </div>
+  </div>
+  <p style="margin-top:12px; font-size:13px; opacity:0.85;" id="aiReasoning"></p>
+
+  <label style="margin-top:14px; display:block;">Score réel (après le match)</label>
+  <div class="score-row">
+    <input id="realScoreA" type="number" min="0" placeholder="0">
+    <input id="realScoreB" type="number" min="0" placeholder="0">
+  </div>
+  <button class="secondary" id="settleBtn">✅ Valider le résultat</button>
+
+  <canvas id="shareCanvas" width="1080" height="1080"></canvas>
+  <img id="shareCard" style="display:none;">
+  <button class="secondary" id="shareBtn" style="display:none;">📤 Télécharger la carte</button>
+</div>
+
+<p class="streak" id="streakDisplay"></p>
+
+<script>
+let currentDuel = null;
+
+function getStreak() {
+  return JSON.parse(localStorage.getItem('pg_streak') || '{"user":0,"ai":0,"total":0}');
+}
+function saveStreak(s) { localStorage.setItem('pg_streak', JSON.stringify(s)); }
+function renderStreak() {
+  const s = getStreak();
+  document.getElementById('streakDisplay').textContent =
+    s.total > 0 ? `🏆 Score cumulé — Toi: ${s.user} | IA: ${s.ai} (sur ${s.total} duels)` : '';
+}
+renderStreak();
+
+document.getElementById('duelBtn').addEventListener('click', async () => {
+  const teamA = document.getElementById('teamA').value.trim();
+  const teamB = document.getElementById('teamB').value.trim();
+  const userA = document.getElementById('userScoreA').value;
+  const userB = document.getElementById('userScoreB').value;
+
+  if (!teamA || !teamB || userA === '' || userB === '') {
+    alert('Remplis les deux équipes et ton pronostic.');
+    return;
+  }
+
+  document.getElementById('loadingMsg').style.display = 'block';
+  document.getElementById('duelBtn').disabled = true;
+
+  try {
+    const res = await fetch('/api/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamA, teamB })
+    });
+    const data = await res.json();
+
+    currentDuel = {
+      teamA, teamB,
+      userScore: `${userA}-${userB}`,
+      aiScore: data.score,
+      confidence: data.confidence,
+      reasoning: data.reasoning
+    };
+
+    document.getElementById('userPredictionDisplay').textContent = `${userA}-${userB}`;
+    document.getElementById('aiPredictionDisplay').textContent = data.score;
+    document.getElementById('confidenceDisplay').textContent = `Confiance IA: ${data.confidence}%`;
+    document.getElementById('aiReasoning').textContent = data.reasoning;
+    document.getElementById('resultBox').style.display = 'block';
+  } catch (e) {
+    alert("L'IA est indisponible pour le moment (quota Groq atteint probablement). Réessaie plus tard.");
+  }
+  document.getElementById('loadingMsg').style.display = 'none';
+  document.getElementById('duelBtn').disabled = false;
+});
+
+document.getElementById('settleBtn').addEventListener('click', () => {
+  const realA = document.getElementById('realScoreA').value;
+  const realB = document.getElementById('realScoreB').value;
+  if (realA === '' || realB === '') { alert('Entre le score réel.'); return; }
+
+  const realScore = `${realA}-${realB}`;
+  const userCorrect = currentDuel.userScore === realScore;
+  const aiCorrect = currentDuel.aiScore === realScore;
+
+  const s = getStreak();
+  s.total++;
+  if (userCorrect) s.user++;
+  if (aiCorrect) s.ai++;
+  saveStreak(s);
+  renderStreak();
+
+  drawShareCard(currentDuel, realScore, userCorrect, aiCorrect);
+});
+
+function drawShareCard(duel, realScore, userCorrect, aiCorrect) {
+  const canvas = document.getElementById('shareCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0, 0, 0, 1080);
+  grad.addColorStop(0, '#2d1854');
+  grad.addColorStop(1, '#0d0620');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1080, 1080);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd166';
+  ctx.font = 'bold 54px sans-serif';
+  ctx.fillText('🦁 PRONOS GALACTIC', 540, 120);
+
+  ctx.fillStyle = '#f5e6c8';
+  ctx.font = 'bold 46px sans-serif';
+  ctx.fillText(`${duel.teamA} vs ${duel.teamB}`, 540, 260);
+
+  ctx.font = '32px sans-serif';
+  ctx.fillText(`Score réel : ${realScore}`, 540, 340);
+
+  ctx.font = 'bold 38px sans-serif';
+  ctx.fillStyle = userCorrect ? '#7CFC9A' : '#f5e6c8';
+  ctx.fillText(`TOI: ${duel.userScore} ${userCorrect ? '✅' : ''}`, 540, 460);
+
+  ctx.fillStyle = aiCorrect ? '#7CFC9A' : '#f5e6c8';
+  ctx.fillText(`IA: ${duel.aiScore} ${aiCorrect ? '✅' : ''}`, 540, 530);
+
+  const s = getStreak();
+  ctx.fillStyle = '#ffd166';
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillText(`Score cumulé: Toi ${s.user} - IA ${s.ai}`, 540, 650);
+
+  ctx.font = 'italic 26px sans-serif';
+  ctx.fillStyle = '#f5e6c8';
+  ctx.fillText('Sounds from elsewhere, never heard, never known', 540, 980);
+
+  const dataUrl = canvas.toDataURL('image/png');
+  const img = document.getElementById('shareCard');
+  img.src = dataUrl;
+  img.style.display = 'block';
+
+  const shareBtn = document.getElementById('shareBtn');
+  shareBtn.style.display = 'block';
+  shareBtn.onclick = () => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'pronos-galactic.png';
+    a.click();
+  };
+}
+</script>
+</body>
+</html>
