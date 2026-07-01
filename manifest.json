@@ -5,5 +5,7 @@
   "display": "standalone",
   "background_color": "#0d0620",
   "theme_color": "#1a0b2e",
-  "icons": []
+  "icons": [
+    { "src": "/pronos-galactic-logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
 }
