@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pronos Galactic</title>
 <link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/pronos-galactic-logo.png">
+<link rel="apple-touch-icon" href="/pronos-galactic-logo.png">
 <meta name="theme-color" content="#1a0b2e">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -123,7 +125,8 @@
 <body>
 
 <header>
-  <h1>🦁 Pronos Galactic</h1>
+  <img src="/pronos-galactic-logo.png" alt="Pronos Galactic" style="width:72px; height:72px; border-radius:16px; margin-bottom:8px;">
+  <h1>Pronos Galactic</h1>
   <p>Sounds from elsewhere, never heard, never known — version pronostics</p>
 </header>
 
@@ -195,7 +198,6 @@
 let currentDuel = null;
 const FREE_DAILY_LIMIT = 3;
 
-// --- Déblocage via redirection Stripe ---
 (function checkUnlock() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('unlocked') === 'true') {
@@ -208,7 +210,6 @@ function isUnlocked() {
   return localStorage.getItem('pg_unlocked') === 'true';
 }
 
-// --- Compteur quotidien ---
 function getTodayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
