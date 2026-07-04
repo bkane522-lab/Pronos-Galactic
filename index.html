@@ -56,7 +56,7 @@
     color: #ffd166;
     margin-top: 8px;
   }
-  .result-box { margin-top: 16px; display: none; }
+  button.primary:disabled { opacity: 0.55; }
   .duel-vs { display: flex; justify-content: space-between; margin-top: 10px; }
   .duel-side { text-align: center; flex: 1; }
   .duel-side h3 { color: #ffd166; font-size: 13px; }
@@ -64,7 +64,7 @@
   .confidence { font-size: 12px; opacity: 0.8; margin-top: 4px; }
   .streak { text-align: center; font-size: 14px; margin-top: 20px; opacity: 0.85; }
   canvas { display: none; }
-  #shareCard { display: block; margin-top: 14px; border-radius: 14px; width: 100%; }
+  .share-img { display: block; margin-top: 14px; border-radius: 14px; width: 100%; }
   .loading { text-align: center; font-size: 13px; opacity: 0.7; }
   .quota { text-align: center; font-size: 12px; opacity: 0.75; margin-top: 8px; }
   .paywall {
@@ -120,6 +120,36 @@
     line-height: 1.5;
     padding: 0 8px;
   }
+  .section-title {
+    font-size: 15px;
+    color: #ffd166;
+    margin-bottom: 10px;
+    opacity: 0.9;
+  }
+  .duel-pending-list { margin-bottom: 16px; }
+  .duel-pending-card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,209,102,0.25);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .duel-pending-card h4 { font-size: 15px; color: #f5e6c8; margin-bottom: 6px; }
+  .settled-status { text-align: center; font-size: 14px; margin-top: 10px; }
+  .remove-link {
+    display: block;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.6;
+    margin-top: 10px;
+    cursor: pointer;
+  }
+  .empty-hint {
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.5;
+    padding: 10px;
+  }
 </style>
 </head>
 <body>
@@ -162,30 +192,9 @@
   <p style="margin-top:14px; opacity:0.6;">Ou reviens demain pour 3 nouveaux duels gratuits.</p>
 </div>
 
-<div class="card result-box" id="resultBox">
-  <div class="duel-vs">
-    <div class="duel-side">
-      <h3>TOI</h3>
-      <p id="userPredictionDisplay">-</p>
-    </div>
-    <div class="duel-side">
-      <h3>IA GALACTIC</h3>
-      <p id="aiPredictionDisplay">-</p>
-      <p class="confidence" id="confidenceDisplay"></p>
-    </div>
-  </div>
-  <p style="margin-top:12px; font-size:13px; opacity:0.85;" id="aiReasoning"></p>
-
-  <label style="margin-top:14px; display:block;">Score réel (après le match)</label>
-  <div class="score-row">
-    <input id="realScoreA" type="number" min="0" placeholder="0">
-    <input id="realScoreB" type="number" min="0" placeholder="0">
-  </div>
-  <button class="secondary" id="settleBtn">✅ Valider le résultat</button>
-
-  <canvas id="shareCanvas" width="1080" height="1080"></canvas>
-  <img id="shareCard" style="display:none;">
-  <button class="secondary" id="shareBtn" style="display:none;">📤 Télécharger la carte</button>
+<div id="pendingSection" style="display:none;">
+  <p class="section-title">⏳ Duels en attente de résultat</p>
+  <div class="duel-pending-list" id="pendingList"></div>
 </div>
 
 <p class="streak" id="streakDisplay"></p>
@@ -194,10 +203,12 @@
   Pronos Galactic est un outil de divertissement basé sur l'IA et ne constitue en aucun cas un conseil financier ou une garantie de gain. Les pronostics affichés sont générés automatiquement et peuvent être erronés. Jouer comporte des risques : endettement, isolement, dépendance. Pour être aidé, appelez le 09 74 75 13 13 (appel non surtaxé).
 </p>
 
+<canvas id="shareCanvas" width="1080" height="1080" style="display:none;"></canvas>
+
 <script>
-let currentDuel = null;
 const FREE_DAILY_LIMIT = 3;
 
+// --- Déblocage via redirection Stripe ---
 (function checkUnlock() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('unlocked') === 'true') {
@@ -210,6 +221,7 @@ function isUnlocked() {
   return localStorage.getItem('pg_unlocked') === 'true';
 }
 
+// --- Compteur quotidien ---
 function getTodayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -272,6 +284,74 @@ function renderStreak() {
 }
 renderStreak();
 
+// --- Gestion des duels en attente (liste persistée) ---
+function getPendingDuels() {
+  return JSON.parse(localStorage.getItem('pg_pending') || '[]');
+}
+function savePendingDuels(list) {
+  localStorage.setItem('pg_pending', JSON.stringify(list));
+}
+
+function renderPendingList() {
+  const list = getPendingDuels();
+  const section = document.getElementById('pendingSection');
+  const container = document.getElementById('pendingList');
+
+  if (list.length === 0) {
+    section.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  section.style.display = 'block';
+  container.innerHTML = '';
+
+  list.slice().reverse().forEach(duel => {
+    const card = document.createElement('div');
+    card.className = 'duel-pending-card';
+    card.id = `duel-${duel.id}`;
+
+    card.innerHTML = `
+      <h4>${duel.teamA} vs ${duel.teamB}</h4>
+      <div class="duel-vs">
+        <div class="duel-side">
+          <h3>TOI</h3>
+          <p>${duel.userScore}</p>
+        </div>
+        <div class="duel-side">
+          <h3>IA GALACTIC</h3>
+          <p>${duel.aiScore}</p>
+          <p class="confidence">Confiance IA: ${duel.confidence}%</p>
+        </div>
+      </div>
+      <p style="margin-top:10px; font-size:13px; opacity:0.85;">${duel.reasoning || ''}</p>
+
+      <label style="margin-top:14px; display:block;">Score réel (après le match)</label>
+      <div class="score-row">
+        <input type="number" min="0" placeholder="0" id="realA-${duel.id}">
+        <input type="number" min="0" placeholder="0" id="realB-${duel.id}">
+      </div>
+      <button class="secondary" data-settle="${duel.id}">✅ Valider le résultat</button>
+      <span class="remove-link" data-remove="${duel.id}">Retirer ce duel sans valider</span>
+      <div id="settledArea-${duel.id}"></div>
+    `;
+    container.appendChild(card);
+  });
+
+  container.querySelectorAll('[data-settle]').forEach(btn => {
+    btn.addEventListener('click', () => settleDuel(btn.getAttribute('data-settle')));
+  });
+  container.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-remove');
+      const updated = getPendingDuels().filter(d => d.id !== id);
+      savePendingDuels(updated);
+      renderPendingList();
+    });
+  });
+}
+renderPendingList();
+
 document.getElementById('duelBtn').addEventListener('click', async () => {
   if (remainingDuels() <= 0) {
     updateQuotaDisplay();
@@ -299,7 +379,8 @@ document.getElementById('duelBtn').addEventListener('click', async () => {
     });
     const data = await res.json();
 
-    currentDuel = {
+    const newDuel = {
+      id: Date.now().toString(),
       teamA, teamB,
       userScore: `${userA}-${userB}`,
       aiScore: data.score,
@@ -307,11 +388,16 @@ document.getElementById('duelBtn').addEventListener('click', async () => {
       reasoning: data.reasoning
     };
 
-    document.getElementById('userPredictionDisplay').textContent = `${userA}-${userB}`;
-    document.getElementById('aiPredictionDisplay').textContent = data.score;
-    document.getElementById('confidenceDisplay').textContent = `Confiance IA: ${data.confidence}%`;
-    document.getElementById('aiReasoning').textContent = data.reasoning;
-    document.getElementById('resultBox').style.display = 'block';
+    const list = getPendingDuels();
+    list.push(newDuel);
+    savePendingDuels(list);
+    renderPendingList();
+
+    // Réinitialise le formulaire pour permettre un nouveau duel immédiatement
+    document.getElementById('teamA').value = '';
+    document.getElementById('teamB').value = '';
+    document.getElementById('userScoreA').value = '';
+    document.getElementById('userScoreB').value = '';
 
     if (!isUnlocked()) {
       incrementDailyUsage();
@@ -324,14 +410,18 @@ document.getElementById('duelBtn').addEventListener('click', async () => {
   document.getElementById('duelBtn').disabled = false;
 });
 
-document.getElementById('settleBtn').addEventListener('click', () => {
-  const realA = document.getElementById('realScoreA').value;
-  const realB = document.getElementById('realScoreB').value;
+function settleDuel(id) {
+  const list = getPendingDuels();
+  const duel = list.find(d => d.id === id);
+  if (!duel) return;
+
+  const realA = document.getElementById(`realA-${id}`).value;
+  const realB = document.getElementById(`realB-${id}`).value;
   if (realA === '' || realB === '') { alert('Entre le score réel.'); return; }
 
   const realScore = `${realA}-${realB}`;
-  const userCorrect = currentDuel.userScore === realScore;
-  const aiCorrect = currentDuel.aiScore === realScore;
+  const userCorrect = duel.userScore === realScore;
+  const aiCorrect = duel.aiScore === realScore;
 
   const s = getStreak();
   s.total++;
@@ -340,8 +430,33 @@ document.getElementById('settleBtn').addEventListener('click', () => {
   saveStreak(s);
   renderStreak();
 
-  drawShareCard(currentDuel, realScore, userCorrect, aiCorrect);
-});
+  const dataUrl = drawShareCard(duel, realScore, userCorrect, aiCorrect);
+
+  const settledArea = document.getElementById(`settledArea-${id}`);
+  settledArea.innerHTML = `
+    <p class="settled-status">${userCorrect ? '✅ Tu as trouvé le bon score !' : aiCorrect ? '🤖 L\\'IA a gagné ce duel !' : '❌ Personne n\\'a trouvé le score exact.'}</p>
+    <img class="share-img" src="${dataUrl}">
+    <button class="secondary" data-download="${id}">📤 Télécharger la carte</button>
+  `;
+  settledArea.querySelector(`[data-download="${id}"]`).addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'pronos-galactic.png';
+    a.click();
+  });
+
+  // Retire les champs de saisie et le bouton valider une fois réglé
+  const card = document.getElementById(`duel-${id}`);
+  const settleBtn = card.querySelector(`[data-settle="${id}"]`);
+  const removeLink = card.querySelector(`[data-remove="${id}"]`);
+  if (settleBtn) settleBtn.remove();
+  if (removeLink) removeLink.remove();
+  card.querySelectorAll('input').forEach(inp => inp.disabled = true);
+
+  // Retire ce duel de la liste "en attente" persistée (il est réglé)
+  const updated = getPendingDuels().filter(d => d.id !== id);
+  savePendingDuels(updated);
+}
 
 function drawShareCard(duel, realScore, userCorrect, aiCorrect) {
   const canvas = document.getElementById('shareCanvas');
@@ -381,19 +496,7 @@ function drawShareCard(duel, realScore, userCorrect, aiCorrect) {
   ctx.fillStyle = '#f5e6c8';
   ctx.fillText('Sounds from elsewhere, never heard, never known', 540, 980);
 
-  const dataUrl = canvas.toDataURL('image/png');
-  const img = document.getElementById('shareCard');
-  img.src = dataUrl;
-  img.style.display = 'block';
-
-  const shareBtn = document.getElementById('shareBtn');
-  shareBtn.style.display = 'block';
-  shareBtn.onclick = () => {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = 'pronos-galactic.png';
-    a.click();
-  };
+  return canvas.toDataURL('image/png');
 }
 </script>
 </body>
