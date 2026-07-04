@@ -434,7 +434,7 @@ function settleDuel(id) {
 
   const settledArea = document.getElementById(`settledArea-${id}`);
   settledArea.innerHTML = `
-    <p class="settled-status">${userCorrect ? '✅ Tu as trouvé le bon score !' : aiCorrect ? '🤖 L\\'IA a gagné ce duel !' : '❌ Personne n\\'a trouvé le score exact.'}</p>
+    <p class="settled-status">${userCorrect ? '✅ Tu as trouvé le bon score !' : aiCorrect ? "🤖 L'IA a gagné ce duel !" : "❌ Personne n'a trouvé le score exact."}</p>
     <img class="share-img" src="${dataUrl}">
     <button class="secondary" data-download="${id}">📤 Télécharger la carte</button>
   `;
