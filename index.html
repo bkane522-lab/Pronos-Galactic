@@ -166,9 +166,73 @@
 
 <div class="card" id="formCard">
   <label>Équipe A</label>
-  <input id="teamA" placeholder="Ex: Brésil">
+  <input id="teamA" placeholder="Ex: Brésil" list="teamSuggestions" autocomplete="off">
   <label style="margin-top:10px; display:block;">Équipe B</label>
-  <input id="teamB" placeholder="Ex: France">
+  <input id="teamB" placeholder="Ex: France" list="teamSuggestions" autocomplete="off">
+
+  <datalist id="teamSuggestions">
+    <option value="Paris Saint-Germain">
+    <option value="Olympique de Marseille">
+    <option value="Olympique Lyonnais">
+    <option value="AS Monaco">
+    <option value="LOSC Lille">
+    <option value="Stade Rennais">
+    <option value="RC Lens">
+    <option value="OGC Nice">
+    <option value="Real Madrid">
+    <option value="FC Barcelone">
+    <option value="Atlético Madrid">
+    <option value="Real Sociedad">
+    <option value="Athletic Bilbao">
+    <option value="Sevilla FC">
+    <option value="Manchester City">
+    <option value="Manchester United">
+    <option value="Liverpool">
+    <option value="Chelsea">
+    <option value="Arsenal">
+    <option value="Tottenham Hotspur">
+    <option value="Newcastle United">
+    <option value="Aston Villa">
+    <option value="Bayern Munich">
+    <option value="Borussia Dortmund">
+    <option value="RB Leipzig">
+    <option value="Bayer Leverkusen">
+    <option value="Eintracht Frankfurt">
+    <option value="Juventus">
+    <option value="AC Milan">
+    <option value="Inter Milan">
+    <option value="AS Roma">
+    <option value="SSC Napoli">
+    <option value="Atalanta">
+    <option value="Ajax Amsterdam">
+    <option value="PSV Eindhoven">
+    <option value="Feyenoord">
+    <option value="FC Porto">
+    <option value="Benfica">
+    <option value="Sporting CP">
+    <option value="Flamengo">
+    <option value="Palmeiras">
+    <option value="Corinthians">
+    <option value="São Paulo">
+    <option value="Brésil">
+    <option value="France">
+    <option value="Argentine">
+    <option value="Espagne">
+    <option value="Angleterre">
+    <option value="Allemagne">
+    <option value="Portugal">
+    <option value="Italie">
+    <option value="Pays-Bas">
+    <option value="Belgique">
+    <option value="Maroc">
+    <option value="Sénégal">
+    <option value="Côte d'Ivoire">
+    <option value="Algérie">
+    <option value="Nigeria">
+    <option value="Ghana">
+    <option value="Cameroun">
+    <option value="Égypte">
+  </datalist>
 
   <label style="margin-top:10px; display:block;">Ton pronostic (score exact)</label>
   <div class="score-row">
@@ -203,10 +267,24 @@
   Pronos Galactic est un outil de divertissement basé sur l'IA et ne constitue en aucun cas un conseil financier ou une garantie de gain. Les pronostics affichés sont générés automatiquement et peuvent être erronés. Jouer comporte des risques : endettement, isolement, dépendance. Pour être aidé, appelez le 09 74 75 13 13 (appel non surtaxé).
 </p>
 
+<details style="margin-top:14px; font-size:11px; opacity:0.7; padding: 0 8px;">
+  <summary style="cursor:pointer; text-align:center; opacity:0.85;">Mentions légales & Confidentialité</summary>
+  <div style="margin-top:10px; line-height:1.6;">
+    <strong>Données stockées :</strong> Pronos Galactic ne collecte aucune donnée personnelle identifiante. Tes duels, ton statut d'accès et tes préférences sont enregistrés uniquement sur ton appareil (stockage local du navigateur), jamais sur un serveur externe.<br><br>
+    <strong>Services tiers utilisés :</strong> les noms d'équipes que tu saisis sont transmis à Groq (traitement IA) pour générer les pronostics, et à football-data.org pour récupérer les classements réels. Aucune information personnelle n'est transmise à ces services. En cas de paiement, Stripe traite la transaction de manière sécurisée ; Pronos Galactic n'a jamais accès à tes coordonnées bancaires.<br><br>
+    <strong>Cookies :</strong> aucun cookie de suivi publicitaire n'est utilisé. Seul le stockage local nécessaire au fonctionnement de l'app est utilisé.<br><br>
+    <strong>Contact :</strong> pour toute question sur tes données, contacte l'éditeur de l'application.
+  </div>
+</details>
+
 <canvas id="shareCanvas" width="1080" height="1080" style="display:none;"></canvas>
 
 <script>
 const FREE_DAILY_LIMIT = 3;
+
+function isValidScore(v) {
+  return /^\d{1,2}$/.test(v) && Number(v) <= 20;
+}
 
 // --- Déblocage via redirection Stripe ---
 (function checkUnlock() {
@@ -367,6 +445,10 @@ document.getElementById('duelBtn').addEventListener('click', async () => {
     alert('Remplis les deux équipes et ton pronostic.');
     return;
   }
+  if (!isValidScore(userA) || !isValidScore(userB)) {
+    alert('Le score doit être un nombre entier entre 0 et 20.');
+    return;
+  }
 
   document.getElementById('loadingMsg').style.display = 'block';
   document.getElementById('duelBtn').disabled = true;
@@ -418,6 +500,10 @@ function settleDuel(id) {
   const realA = document.getElementById(`realA-${id}`).value;
   const realB = document.getElementById(`realB-${id}`).value;
   if (realA === '' || realB === '') { alert('Entre le score réel.'); return; }
+  if (!isValidScore(realA) || !isValidScore(realB)) {
+    alert('Le score doit être un nombre entier entre 0 et 20.');
+    return;
+  }
 
   const realScore = `${realA}-${realB}`;
   const userCorrect = duel.userScore === realScore;
@@ -436,13 +522,41 @@ function settleDuel(id) {
   settledArea.innerHTML = `
     <p class="settled-status">${userCorrect ? '✅ Tu as trouvé le bon score !' : aiCorrect ? "🤖 L'IA a gagné ce duel !" : "❌ Personne n'a trouvé le score exact."}</p>
     <img class="share-img" src="${dataUrl}">
-    <button class="secondary" data-download="${id}">📤 Télécharger la carte</button>
+    <button class="primary" data-share="${id}">📲 Partager</button>
+    <button class="secondary" data-download="${id}">📥 Télécharger la carte</button>
   `;
   settledArea.querySelector(`[data-download="${id}"]`).addEventListener('click', () => {
     const a = document.createElement('a');
     a.href = dataUrl;
     a.download = 'pronos-galactic.png';
     a.click();
+  });
+  settledArea.querySelector(`[data-share="${id}"]`).addEventListener('click', async () => {
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], 'pronos-galactic.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Pronos Galactic',
+          text: `${duel.teamA} vs ${duel.teamB} — mon duel contre l'IA sur Pronos Galactic 🦁⚽`
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: 'Pronos Galactic',
+          text: `${duel.teamA} vs ${duel.teamB} — mon duel contre l'IA sur Pronos Galactic 🦁⚽`,
+          url: window.location.origin
+        });
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'pronos-galactic.png';
+        a.click();
+        alert('Partage direct non disponible sur ce navigateur — la carte a été téléchargée, tu peux la partager manuellement.');
+      }
+    } catch (e) {
+      // L'utilisateur a peut-être annulé le partage, on ignore silencieusement
+    }
   });
 
   // Retire les champs de saisie et le bouton valider une fois réglé
